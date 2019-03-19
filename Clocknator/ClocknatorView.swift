@@ -30,7 +30,37 @@ final class ClocknatorView: UIView, CAAnimationDelegate {
 
     // MARK: - View Properties
     
-    var circleColor = UIColor(white: 0.95, alpha: 1.0)
+    var time = Date() {
+        didSet {
+            setClockTime()
+        }
+    }
+    
+    private func setClockTime() {
+        let calendar = Calendar.current
+        
+        let hour = calendar.component(.hour, from: time) % 12
+        let minutes = calendar.component(.minute, from: time)
+        let seconds = calendar.component(.second, from: time)
+        
+        setPointerTime(
+            for: clockBackgroundLayer,
+            progress: CGFloat(seconds) / 60,
+            duration: 60
+        )
+        setPointerTime(
+            for: clockMinutesLayer,
+            progress: CGFloat(minutes) / 60,
+            duration: 60*60
+        )
+        setPointerTime(
+            for: clockHoursLayer,
+            progress: CGFloat(hour) / 12,
+            duration: 12*60*60
+        )
+
+        print("Clock time updated to \(hour):\(minutes):\(seconds)")
+    }
     
     // MARK: - View Layout
     
@@ -52,12 +82,15 @@ final class ClocknatorView: UIView, CAAnimationDelegate {
     // MARK: - Clock Layers
 
     private var oldBounds: CGRect? = nil
-    private var unitTransform = CGAffineTransform()
+    private var clockTransform = CGAffineTransform()
 
     private let clockBackgroundLayer = CAShapeLayer()
+    private let clockSecondsLayer = CAShapeLayer()
+    private let clockMinutesLayer = CAShapeLayer()
+    private let clockHoursLayer = CAShapeLayer()
 
     private let radius: CGFloat = 0.41
-    private let animationSpeed: CFTimeInterval = 7
+    private let animationSpeed: TimeInterval = 1
     
     // Vector color
 
@@ -67,14 +100,18 @@ final class ClocknatorView: UIView, CAAnimationDelegate {
         
         setUpLayersHierarchy()
         setUpClockBackgroundLayer()
-        setUpCenterCircleLayer()
-        setUpSecondsLayer()
-        setUpMinutesLayer()
+        setUpClockMarkersLayer()
+        setUpClockCenterCircleLayer()
+        setUpClockSecondsLayer()
+        setUpClockMinutesLayer()
+        setUpClockHoursLayer()
+        
+        setClockTime()
     }
     
     private func setUpLayersHierarchy() {
         // For simplicity, *all* sublayers are represented in right-handed,
-        // 1.0 x 1.0 unit coordinates system with a centered origin:
+        // 1x1 unit coordinates system with a centered origin:
         //
         //    -------------------------
         //    |         ⬆︎ y           |
@@ -98,18 +135,17 @@ final class ClocknatorView: UIView, CAAnimationDelegate {
         }
         print("Clock size (points): \(size) x \(size)")
         
-        unitTransform = CGAffineTransform.identity
-        unitTransform = unitTransform.scaledBy(x: size, y: size)
-        unitTransform = unitTransform.translatedBy(x: 0.5, y: 0.5)
-        unitTransform = unitTransform.scaledBy(x: 1.0, y: -1.0)
+        clockTransform = CGAffineTransform.identity
+        clockTransform = clockTransform.scaledBy(x: size, y: size)
+        clockTransform = clockTransform.translatedBy(x: 0.5, y: 0.5)
+        clockTransform = clockTransform.scaledBy(x: 1.0, y: -1.0)
         
         layer.bounds = bounds
         layer.backgroundColor = nil
-        //layer.backgroundColor = UIColor(white: 0.95, alpha: 1).cgColor
         
-        let sublayerFrame = CGRect(x: offset.dx, y: offset.dy, width: size, height: size)
+        let clockFrame = CGRect(x: offset.dx, y: offset.dy, width: size, height: size)
+        clockBackgroundLayer.frame = clockFrame
         
-        clockBackgroundLayer.frame = sublayerFrame
         layer.removeAllSublayers()
         layer.addSublayer(clockBackgroundLayer)
     }
@@ -138,70 +174,106 @@ final class ClocknatorView: UIView, CAAnimationDelegate {
         radialGradientLayer.endPoint = CGPoint(x: 1.0, y: 1.0)
         
         clockBackgroundLayer.addSublayer(radialGradientLayer)
-        rotate(layer: clockBackgroundLayer, duration: 60)
     }
     
-    private func setUpSecondsLayer() {
-        let secondsPointerLayer = CAShapeLayer()
-        secondsPointerLayer.strokeColor = nil
-        secondsPointerLayer.fillColor = red
-        secondsPointerLayer.backgroundColor = nil
-        secondsPointerLayer.frame = clockBackgroundLayer.bounds
-        secondsPointerLayer.path = secondsArrowPath()
-        secondsPointerLayer.shadowOpacity = 0.5
-        secondsPointerLayer.shadowOffset = CGSize(width: 0, height: 2.5)
+    private func setUpClockSecondsLayer() {
+        clockSecondsLayer.removeAllSublayers()
+        clockSecondsLayer.strokeColor = nil
+        clockSecondsLayer.fillColor = red
+        clockSecondsLayer.backgroundColor = nil
+        clockSecondsLayer.frame = clockBackgroundLayer.bounds
+        clockSecondsLayer.path = secondsArrowPath()
+        clockSecondsLayer.shadowOpacity = 0.5
+        clockSecondsLayer.shadowOffset = CGSize(width: 0, height: 2.5)
         
-        clockBackgroundLayer.addSublayer(secondsPointerLayer)
+        clockBackgroundLayer.addSublayer(clockSecondsLayer)
+    }
+    
+    private func setUpClockMinutesLayer() {
+        setUpClockPointerLayer(clockMinutesLayer, len: radius - 0.09)
     }
 
-    private func setUpMinutesLayer() {
-        let minutesPointerLayer = CAShapeLayer()
-        minutesPointerLayer.strokeColor = red
-        minutesPointerLayer.fillColor = yellow
-        minutesPointerLayer.lineWidth = 1.5
-        minutesPointerLayer.backgroundColor = nil
-        minutesPointerLayer.frame = clockBackgroundLayer.frame
-        minutesPointerLayer.path = minutesArrowPath()
-        minutesPointerLayer.shadowOpacity = 0.5
-        minutesPointerLayer.shadowOffset = CGSize(width: 0, height: 4.5)
+    private func setUpClockHoursLayer() {
+        setUpClockPointerLayer(clockHoursLayer, len: radius - 0.20)
+    }
+
+    private func setUpClockPointerLayer(_ pointerLayer: CAShapeLayer, len: CGFloat) {
+        pointerLayer.removeAllSublayers()
+        pointerLayer.strokeColor = red
+        pointerLayer.fillColor = yellow
+        pointerLayer.lineWidth = 1.5
+        pointerLayer.backgroundColor = nil
+        pointerLayer.frame = clockBackgroundLayer.frame
+        pointerLayer.path = clockPointerPath(len: len)
+        pointerLayer.shadowOpacity = 0.5
+        pointerLayer.shadowOffset = CGSize(width: 0, height: 5.5)
 
         let maskLayer = CAShapeLayer()
         maskLayer.strokeColor = nil
         maskLayer.fillColor = UIColor.white.cgColor
         maskLayer.backgroundColor = nil
-        maskLayer.path = minutesArrowPath()
+        maskLayer.path = clockPointerPath(len: len)
 
         let gradientLayer = CAGradientLayer()
         gradientLayer.colors = [yellow, red]
         gradientLayer.type = .axial
-        gradientLayer.frame = minutesPointerLayer.bounds
+        gradientLayer.frame = pointerLayer.bounds
         gradientLayer.mask = maskLayer
         gradientLayer.startPoint = CGPoint(x: 0.5, y: 0.5)
-        gradientLayer.endPoint = CGPoint(x: 0.78, y: 0.5)
+        gradientLayer.endPoint = CGPoint(x: 0.85, y: 0.5)
+        
+        layer.addSublayer(pointerLayer)
+        pointerLayer.addSublayer(gradientLayer)
+    }
+    
+    private func setUpClockMarkersLayer() {
+        let markersLayer = CAShapeLayer()
+        markersLayer.strokeColor = nil
+        markersLayer.fillColor = white
+        markersLayer.opacity = 0.2
+        markersLayer.backgroundColor = nil
+        
+        let angularGap = 2 * CGFloat.pi / 12
+        let markersPath = CGMutablePath()
+        
+        for marker in 0..<12 {
+            let center = CGPoint(angle: CGFloat(marker) * angularGap, length: 1)
+            if marker % 3 == 0 {
+                markersPath.addPath(circlePath(at: 0.34 * center, radius: 0.04))
+            } else {
+                markersPath.addPath(circlePath(at: 0.36 * center, radius: 0.015))
+            }
+        }
+        markersLayer.path = markersPath
 
-        layer.addSublayer(minutesPointerLayer)
-        minutesPointerLayer.addSublayer(gradientLayer)
-        rotate(layer: minutesPointerLayer, duration: 200)
+        markersLayer.frame = clockBackgroundLayer.frame
+        layer.addSublayer(markersLayer)
     }
 
-    private func setUpCenterCircleLayer() {
+    private func setUpClockCenterCircleLayer() {
         let centerCircleLayer = CAShapeLayer()
         centerCircleLayer.strokeColor = magenta
         centerCircleLayer.fillColor = darkYellow
         centerCircleLayer.backgroundColor = nil
+        centerCircleLayer.path = circlePath(at: .zero, radius: 0.020)
+        
         centerCircleLayer.frame = clockBackgroundLayer.bounds
         clockBackgroundLayer.addSublayer(centerCircleLayer)
+    }
+    
+    private func circlePath(at center: CGPoint, radius: CGFloat) -> CGPath {
+        let circlePath = CGMutablePath()
 
-        let path = CGMutablePath()
-        path.addArc(
-            center: .zero,
-            radius: 0.020,
+        circlePath.addArc(
+            center: center,
+            radius: radius,
             startAngle: 0,
             endAngle: 2 * CGFloat.pi,
             clockwise: true,
-            transform: unitTransform
+            transform: clockTransform
         )
-        centerCircleLayer.path = path
+        
+        return circlePath
     }
 
     private func clockBorderWithNotchPath() -> CGPath {
@@ -214,7 +286,7 @@ final class ClocknatorView: UIView, CAAnimationDelegate {
             startAngle: -halfGap,
             endAngle:   +halfGap,
             clockwise: true,
-            transform: unitTransform
+            transform: clockTransform
         )
         
         // We need to compute proper tangent vectors to ensure C0 and C1 continuity.
@@ -235,13 +307,13 @@ final class ClocknatorView: UIView, CAAnimationDelegate {
             to: pos1,
             control1: pos0 + tan0,
             control2: pos1 - tan1,
-            transform: unitTransform
+            transform: clockTransform
         )
         path.addCurve(
             to: pos2,
             control1: pos1 + tan1,
             control2: pos2 - tan2,
-            transform: unitTransform
+            transform: clockTransform
         )
         
         return path
@@ -261,7 +333,7 @@ final class ClocknatorView: UIView, CAAnimationDelegate {
             ),
             cornerWidth: 0.15,
             cornerHeight: 0.002,
-            transform: unitTransform
+            transform: clockTransform
         )
         
         path.addArc(
@@ -270,44 +342,73 @@ final class ClocknatorView: UIView, CAAnimationDelegate {
             startAngle: 0,
             endAngle: 2 * CGFloat.pi,
             clockwise: true,
-            transform: unitTransform
+            transform: clockTransform
         )
         
         return path
     }
 
-    private func minutesArrowPath() -> CGPath {
-        let height: CGFloat = 0.05
+    private func clockPointerPath(len: CGFloat) -> CGPath {
+        let height: CGFloat = 0.04
         let tail: CGFloat = 0.05
-        let len: CGFloat = radius - 0.1
         
         let path = CGMutablePath()
         
+        // Pointer body.
         path.addRoundedRect(
             in: CGRect(
                 x: -tail , y: -height/2,
                 width: len + tail, height: height
             ),
-            cornerWidth: 0.15,
+            cornerWidth: 0.10 * len,
             cornerHeight: 0.02,
-            transform: unitTransform
+            transform: clockTransform
         )
+        
+        // Pointer head.
+        path.addPath(clockPointerHeadPath(tx: len - 0.07))
         
         return path
     }
 
-    private func rotate(layer: CALayer, duration: CFTimeInterval) {
-        let rotateAnimation = CABasicAnimation(keyPath: "transform.rotation")
-        rotateAnimation.fromValue = -0.5 * CGFloat.pi
-        rotateAnimation.toValue = 1.5 * CGFloat.pi
-        rotateAnimation.duration = duration / animationSpeed
-        rotateAnimation.repeatCount = .greatestFiniteMagnitude
+    private func clockPointerHeadPath(tx: CGFloat) -> CGPath {
+        let head: CGFloat = 0.11
+        let tail: CGFloat = 0.05
+        let height: CGFloat = 0.04
+        let headHeight: CGFloat = 0.006
+
+        let pathTransform = clockTransform.translatedBy(x: tx, y: 0)
         
-        layer.removeAllAnimations()
-        layer.add(rotateAnimation, forKey: "rotate")
+        let path = CGMutablePath()
+        
+        path.move(to: CGPoint(x: -tail, y: 0), transform: pathTransform)
+        path.addLine(to: CGPoint(x: 0, y: -height), transform: pathTransform)
+        path.addLine(to: CGPoint(x: +head, y: -headHeight), transform: pathTransform)
+        path.addLine(to: CGPoint(x: +head, y: +headHeight), transform: pathTransform)
+        path.addLine(to: CGPoint(x: 0, y: +height), transform: pathTransform)
+        path.closeSubpath()
+        
+        return path
     }
     
-    
+    private func setPointerTime(for pointerLayer: CALayer,
+                                progress: CGFloat,
+                                duration: TimeInterval) {
+        precondition(progress >= 0 && progress <= 1)
+        
+        let startAngle = (2*progress - 0.5) * CGFloat.pi
+        let endAngle = startAngle + 2 * CGFloat.pi
+        
+        let rotateAnimation = CABasicAnimation(keyPath: "transform.rotation")
+        rotateAnimation.fromValue = startAngle
+        rotateAnimation.toValue = endAngle
+        rotateAnimation.duration = CFTimeInterval(duration / animationSpeed)
+        rotateAnimation.repeatCount = .greatestFiniteMagnitude
+        
+        pointerLayer.removeAllAnimations()
+        pointerLayer.add(rotateAnimation, forKey: "rotate")
+    }
+
     // MARK: - Helpers
     
     private func printCurrentPoint(of path: CGPath) {
