@@ -55,7 +55,7 @@ final class ClocknatorView: UIView, CAAnimationDelegate {
         )
         setPointerTime(
             for: clockHoursLayer,
-            progress: CGFloat(hour) / 12,
+            progress: CGFloat(hour*60 + minutes) / (12*60),
             duration: 12*60*60
         )
 
