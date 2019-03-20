@@ -99,7 +99,6 @@ final class ClocknatorView: UIView, CAAnimationDelegate {
         setUpLayersHierarchy()
         setUpClockBackgroundLayer()
         setUpClockMarkersLayer()
-        setUpClockCenterCircleLayer()
         setUpClockSecondsLayer()
         setUpClockMinutesLayer()
         setUpClockHoursLayer()
@@ -248,17 +247,6 @@ final class ClocknatorView: UIView, CAAnimationDelegate {
         layer.addSublayer(markersLayer)
     }
 
-    private func setUpClockCenterCircleLayer() {
-        let centerCircleLayer = CAShapeLayer()
-        centerCircleLayer.strokeColor = magenta
-        centerCircleLayer.fillColor = darkYellow
-        centerCircleLayer.backgroundColor = nil
-        centerCircleLayer.path = circlePath(at: .zero, radius: 0.020)
-        
-        centerCircleLayer.frame = clockBackgroundLayer.bounds
-        clockBackgroundLayer.addSublayer(centerCircleLayer)
-    }
-    
     private func circlePath(at center: CGPoint, radius: CGFloat) -> CGPath {
         let circlePath = CGMutablePath()
 
