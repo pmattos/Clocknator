@@ -92,8 +92,6 @@ final class ClocknatorView: UIView, CAAnimationDelegate {
     private let radius: CGFloat = 0.41
     private let animationSpeed: TimeInterval = 1
     
-    // Vector color
-
     private func setUpLayers() {
         guard bounds != oldBounds else { return }
         oldBounds = bounds
@@ -182,7 +180,7 @@ final class ClocknatorView: UIView, CAAnimationDelegate {
         clockSecondsLayer.fillColor = red
         clockSecondsLayer.backgroundColor = nil
         clockSecondsLayer.frame = clockBackgroundLayer.bounds
-        clockSecondsLayer.path = secondsArrowPath()
+        clockSecondsLayer.path = clockSecondsPointerPath()
         clockSecondsLayer.shadowOpacity = 0.5
         clockSecondsLayer.shadowOffset = CGSize(width: 0, height: 2.5)
         
@@ -319,7 +317,7 @@ final class ClocknatorView: UIView, CAAnimationDelegate {
         return path
     }
 
-    private func secondsArrowPath() -> CGPath {
+    private func clockSecondsPointerPath() -> CGPath {
         let height: CGFloat = 0.01
         let tail: CGFloat = 0.03
         let len: CGFloat = radius + 0.048
@@ -408,12 +406,12 @@ final class ClocknatorView: UIView, CAAnimationDelegate {
         pointerLayer.removeAllAnimations()
         pointerLayer.add(rotateAnimation, forKey: "rotate")
     }
+}
 
-    // MARK: - Helpers
-    
-    private func printCurrentPoint(of path: CGPath) {
-        print("currentPoint: \(path.currentPoint)")
-    }
+// MARK: - Helpers
+
+fileprivate func printCurrentPoint(of path: CGPath) {
+    print("currentPoint: \(path.currentPoint)")
 }
 
 extension CALayer {
